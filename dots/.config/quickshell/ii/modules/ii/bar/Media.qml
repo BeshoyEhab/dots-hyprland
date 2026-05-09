@@ -30,7 +30,11 @@ Item {
     Timer {
         id: closePopupTimer
         interval: 250
-        onTriggered: GlobalStates.mediaControlsOpen = false
+        onTriggered: {
+            if (!GlobalStates.mediaControlsHovered) {
+                GlobalStates.mediaControlsOpen = false
+            }
+        }
     }
 
     MouseArea {
