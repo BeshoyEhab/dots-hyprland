@@ -1,0 +1,39 @@
+name: Sync Fork
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # Every 6 hours
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    if: github.repository != 'end-4/dots-hyprland'  # Don't run on upstream
+    
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+      - name: Add upstream remote
+        run: |
+          git remote add upstream https://github.com/end-4/dots-hyprland.git
+          git fetch upstream
+
+      - name: Sync main branch
+        run: |
+          git checkout main
+          git rebase upstream/main
+          git push origin main --force-with-lease
+
+      - name: Sync tags
+        run: |
+          git fetch upstream --tags
+          git push origin --tags
