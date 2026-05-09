@@ -353,7 +353,7 @@ ContentPage {
         title: Translation.tr("Media")
         ConfigSwitch {
             buttonIcon: "mouse"
-            text: Translation.tr("Hover to reveal")
+            text: Translation.tr("Hover bar to show media popup")
             checked: Config.options.bar.media.hoverToShow
             onCheckedChanged: {
                 Config.options.bar.media.hoverToShow = checked;

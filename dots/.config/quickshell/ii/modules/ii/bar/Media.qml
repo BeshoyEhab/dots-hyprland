@@ -28,6 +28,18 @@ Item {
         onTriggered: activePlayer.positionChanged()
     }
 
+    Timer {
+        id: closePopupTimer
+        interval: 300
+        onTriggered: {
+            if (!root.hovered && !mediaControlsHovered) {
+                GlobalStates.mediaControlsOpen = false
+            }
+        }
+    }
+
+    property bool mediaControlsHovered: false
+
     MouseArea {
         id: hoverMouseArea
         anchors.fill: parent
@@ -40,12 +52,21 @@ Item {
                 activePlayer.previous();
             } else if (event.button === Qt.ForwardButton || event.button === Qt.RightButton) {
                 activePlayer.next();
-            } else if (event.button === Qt.LeftButton) {
-                GlobalStates.mediaControlsOpen = !GlobalStates.mediaControlsOpen
             }
         }
-        onEntered: root.hovered = true
-        onExited: root.hovered = false
+        onEntered: {
+            root.hovered = true
+            closePopupTimer.stop()
+            if (Config.options.bar.media.hoverToShow && activePlayer?.trackTitle != null) {
+                GlobalStates.mediaControlsOpen = true
+            }
+        }
+        onExited: {
+            root.hovered = false
+            if (Config.options.bar.media.hoverToShow) {
+                closePopupTimer.restart()
+            }
+        }
     }
 
     RowLayout { // Real content
