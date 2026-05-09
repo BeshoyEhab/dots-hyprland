@@ -14,10 +14,12 @@ Item {
     property bool borderless: Config.options.bar.borderless
     readonly property MprisPlayer activePlayer: MprisController.activePlayer
     readonly property string cleanedTitle: StringUtils.cleanMusicTitle(activePlayer?.trackTitle) || Translation.tr("No media")
+    property bool hovered: false
 
     Layout.fillHeight: true
-    implicitWidth: rowLayout.implicitWidth + rowLayout.spacing * 2
+    implicitWidth: mediaRowLayout.x < 0 ? 0 : mediaRowLayout.implicitWidth + mediaRowLayout.spacing * 2
     implicitHeight: Appearance.sizes.barHeight
+    clip: true
 
     Timer {
         running: activePlayer?.playbackState == MprisPlaybackState.Playing
@@ -27,7 +29,9 @@ Item {
     }
 
     MouseArea {
+        id: hoverMouseArea
         anchors.fill: parent
+        hoverEnabled: true
         acceptedButtons: Qt.MiddleButton | Qt.BackButton | Qt.ForwardButton | Qt.RightButton | Qt.LeftButton
         onPressed: (event) => {
             if (event.button === Qt.MiddleButton) {
@@ -40,13 +44,27 @@ Item {
                 GlobalStates.mediaControlsOpen = !GlobalStates.mediaControlsOpen
             }
         }
+        onEntered: root.hovered = true
+        onExited: root.hovered = false
     }
 
     RowLayout { // Real content
-        id: rowLayout
-
+        id: mediaRowLayout
+        x: (Config.options.bar.media.hoverToShow && !hovered && activePlayer?.trackTitle != null) ? -width : 0
         spacing: 4
-        anchors.fill: parent
+        anchors.verticalCenter: parent.verticalCenter
+
+        Behavior on x {
+            animation: Appearance.animation.elementMove.numberAnimation.createObject(this)
+        }
+
+        Behavior on implicitWidth {
+            NumberAnimation {
+                duration: Appearance.animation.elementMove.duration
+                easing.type: Appearance.animation.elementMove.type
+                easing.bezierCurve: Appearance.animation.elementMove.bezierCurve
+            }
+        }
 
         ClippedFilledCircularProgress {
             id: mediaCircProg
@@ -61,7 +79,7 @@ Item {
                 anchors.centerIn: parent
                 width: mediaCircProg.implicitSize
                 height: mediaCircProg.implicitSize
-                
+
                 MaterialSymbol {
                     anchors.centerIn: parent
                     fill: 1
@@ -74,16 +92,13 @@ Item {
 
         StyledText {
             visible: Config.options.bar.verbose
-            width: rowLayout.width - (CircularProgress.size + rowLayout.spacing * 2)
             Layout.alignment: Qt.AlignVCenter
-            Layout.fillWidth: true // Ensures the text takes up available space
-            Layout.rightMargin: rowLayout.spacing
+            Layout.fillWidth: true
+            Layout.rightMargin: mediaRowLayout.spacing
             horizontalAlignment: Text.AlignHCenter
-            elide: Text.ElideRight // Truncates the text on the right
+            elide: Text.ElideRight
             color: Appearance.colors.colOnLayer1
             text: `${cleanedTitle}${activePlayer?.trackArtist ? ' • ' + activePlayer.trackArtist : ''}`
         }
-
     }
-
 }
