@@ -15,6 +15,7 @@ import Quickshell.Hyprland
 Scope {
     id: root
     property bool visible: false
+    property bool hovered: false
     readonly property MprisPlayer activePlayer: MprisController.activePlayer
     readonly property var realPlayers: MprisController.players
     readonly property var meaningfulPlayers: filterDuplicatePlayers(realPlayers)
@@ -83,6 +84,13 @@ Scope {
         sourceComponent: PanelWindow {
             id: panelWindow
             visible: true
+
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+                onEntered: root.hovered = true
+                onExited: root.hovered = false
+            }
 
             exclusionMode: ExclusionMode.Ignore
             exclusiveZone: 0
