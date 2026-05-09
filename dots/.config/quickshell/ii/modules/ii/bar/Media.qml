@@ -14,10 +14,9 @@ Item {
     property bool borderless: Config.options.bar.borderless
     readonly property MprisPlayer activePlayer: MprisController.activePlayer
     readonly property string cleanedTitle: StringUtils.cleanMusicTitle(activePlayer?.trackTitle) || Translation.tr("No media")
-    property bool hovered: false
 
     Layout.fillHeight: true
-    implicitWidth: mediaRowLayout.x < 0 ? 0 : mediaRowLayout.implicitWidth + mediaRowLayout.spacing * 2
+    implicitWidth: mediaRowLayout.implicitWidth + mediaRowLayout.spacing * 2
     implicitHeight: Appearance.sizes.barHeight
     clip: true
 
@@ -30,12 +29,8 @@ Item {
 
     Timer {
         id: closePopupTimer
-        interval: 800
-        onTriggered: {
-            if (!root.hovered) {
-                GlobalStates.mediaControlsOpen = false
-            }
-        }
+        interval: 250
+        onTriggered: GlobalStates.mediaControlsOpen = false
     }
 
     MouseArea {
@@ -53,14 +48,12 @@ Item {
             }
         }
         onEntered: {
-            root.hovered = true
             closePopupTimer.stop()
             if (Config.options.bar.media.hoverToShow && activePlayer?.trackTitle != null) {
                 GlobalStates.mediaControlsOpen = true
             }
         }
         onExited: {
-            root.hovered = false
             if (Config.options.bar.media.hoverToShow) {
                 closePopupTimer.restart()
             }
@@ -69,7 +62,7 @@ Item {
 
     RowLayout { // Real content
         id: mediaRowLayout
-        x: (Config.options.bar.media.hoverToShow && !hovered && activePlayer?.trackTitle != null) ? -width : 0
+        x: 0
         spacing: 4
         anchors.verticalCenter: parent.verticalCenter
 
