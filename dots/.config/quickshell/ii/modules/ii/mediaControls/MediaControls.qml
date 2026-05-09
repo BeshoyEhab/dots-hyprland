@@ -15,7 +15,6 @@ import Quickshell.Hyprland
 Scope {
     id: root
     property bool visible: false
-    property bool hovered: false
     readonly property MprisPlayer activePlayer: MprisController.activePlayer
     readonly property var realPlayers: MprisController.players
     readonly property var meaningfulPlayers: filterDuplicatePlayers(realPlayers)
@@ -88,8 +87,17 @@ Scope {
             MouseArea {
                 anchors.fill: parent
                 hoverEnabled: true
-                onEntered: root.hovered = true
-                onExited: root.hovered = false
+                onEntered: GlobalStates.mediaControlsHovered = true
+                onExited: {
+                    GlobalStates.mediaControlsHovered = false
+                    closePopupTimer.restart()
+                }
+
+                Timer {
+                    id: closePopupTimer
+                    interval: 100
+                    onTriggered: GlobalStates.mediaControlsOpen = false
+                }
             }
 
             exclusionMode: ExclusionMode.Ignore
