@@ -347,4 +347,17 @@ ContentPage {
             }
         }
     }
+
+    ContentSection {
+        icon: "music_note"
+        title: Translation.tr("Media")
+        ConfigSwitch {
+            buttonIcon: "mouse"
+            text: Translation.tr("Hover to reveal")
+            checked: Config.options.bar.media.hoverToShow
+            onCheckedChanged: {
+                Config.options.bar.media.hoverToShow = checked;
+            }
+        }
+    }
 }
