@@ -79,20 +79,35 @@ Scope {
                     implicitWidth: Config.options.sidebar.cornerOpen.cornerRegionWidth
                     implicitHeight: Config.options.sidebar.cornerOpen.cornerRegionHeight
                     hoverEnabled: true
+
+                    property bool cooldown: false
+                    Timer {
+                        id: cooldownTimer
+                        interval: 500
+                        onTriggered: mouseArea.cooldown = false
+                    }
+
+                    function triggerAction() {
+                        if (cooldown) return;
+                        cooldown = true;
+                        cooldownTimer.restart();
+                        screenCorners.actionForCorner[cornerPanelWindow.corner]();
+                    }
+
                     onPositionChanged: {
                         if (!Config.options.sidebar.cornerOpen.clicklessCornerEnd) return;
                         const verticalOffset = Config.options.sidebar.cornerOpen.clicklessCornerVerticalOffset;
                         const correctX = (cornerWidget.isRight && mouseArea.mouseX >= mouseArea.width - 2) || (cornerWidget.isLeft && mouseArea.mouseX <= 2);
                         const correctY = (cornerWidget.isTop && mouseArea.mouseY > verticalOffset || cornerWidget.isBottom && mouseArea.mouseY < mouseArea.height - verticalOffset);
                         if (correctX && correctY)
-                            screenCorners.actionForCorner[cornerPanelWindow.corner]();
+                            triggerAction();
                     }
                     onEntered: {
                         if (Config.options.sidebar.cornerOpen.clickless)
-                            screenCorners.actionForCorner[cornerPanelWindow.corner]();
+                            triggerAction();
                     }
                     onPressed: {
-                        screenCorners.actionForCorner[cornerPanelWindow.corner]();
+                        triggerAction();
                     }
                     onScrollDown: {
                         if (!Config.options.sidebar.cornerOpen.valueScroll)
