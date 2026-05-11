@@ -269,6 +269,25 @@ switch() {
         fi
     fi
 
+    # --- SMART MONOCHROME MATUGEN OVERRIDE ---
+    # The wallpaper path has already been set, so the desktop image WILL change. 
+    # Now we hijack the color math right before matugen runs.
+    if [[ -z "$color_flag" && -n "$imgpath" ]] && ! is_video "$imgpath"; then
+        if command -v magick &> /dev/null && command -v bc &> /dev/null && [[ -f "$imgpath" ]]; then
+            local sat_val=$(magick "$imgpath" -scale 50x50\! -colorspace HSL -channel Saturation -separate -format "%[fx:mean]" info: 2>/dev/null || echo "1.0")
+            local is_mono=$(echo "$sat_val < 0.05" | bc -l 2>/dev/null || echo "0")
+            
+            if [[ "$is_mono" -eq 1 ]]; then
+                echo "[switchwall] Grayscale detected. Replacing image seed with raw hex."
+                type_flag="scheme-monochrome"
+                # Rewrite the arguments to use a hex color instead of the image path
+                matugen_args=(--source-color-index 0 color hex "#8c8c8c")
+                generate_colors_material_args=(--color "#8c8c8c")
+            fi
+        fi
+    fi
+    # -----------------------------------------
+
     # enforce dark mode for terminal
     if [[ -n "$mode_flag" ]]; then
         matugen_args+=(--mode "$mode_flag")
