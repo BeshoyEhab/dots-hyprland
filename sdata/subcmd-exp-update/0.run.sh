@@ -56,6 +56,22 @@ declare -a IGNORE_SUBSTRING_PATTERNS=()
 # Track created directories to avoid redundant mkdir calls
 declare -A CREATED_DIRS
 
+# Track new ignored files (files that are new and matched ignore pattern)
+declare -a NEW_IGNORED_FILES=()
+
+# Track CLI excludes
+declare -a CLI_EXCLUDE_PATTERNS=()
+
+# Track if apply-to-all mode is set globally
+APPLY_TO_ALL_CHOICE=""
+
+# Custom backup directory (defaults to .update-backups in repo)
+if [[ -n "${CUSTOM_BACKUP_DIR:-}" ]]; then
+  UPDATE_BACKUP_DIR="${CUSTOM_BACKUP_DIR}"
+else
+  UPDATE_BACKUP_DIR="${REPO_ROOT}/.update-backups"
+fi
+
 # Auto-detect repository structure
 detect_repo_structure() {
   local found_dirs=()
@@ -166,17 +182,17 @@ safe_read() {
 load_ignore_patterns() {
   IGNORE_PATTERNS=()
   IGNORE_SUBSTRING_PATTERNS=()
-  
+
   for ignore_file in "$UPDATE_IGNORE_FILE" "$XDG_UPDATE_IGNORE_FILE" "$HOME_UPDATE_IGNORE_FILE"; do
     [[ ! -f "$ignore_file" ]] && continue
-    
+
     while IFS= read -r pattern || [[ -n "$pattern" ]]; do
       # Skip empty lines and comments
       [[ -z "$pattern" || "$pattern" =~ ^[[:space:]]*# ]] && continue
       # Remove whitespace
       pattern=$(echo "$pattern" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
       [[ -z "$pattern" ]] && continue
-      
+
       # Separate substring patterns from regular patterns
       if [[ "${pattern:0:2}" == "**" ]]; then
         local cleaned_pattern="${pattern#\*\*}"
@@ -193,7 +209,21 @@ load_ignore_patterns() {
       fi
     done < "$ignore_file"
   done
-  
+
+  # Add CLI excludes
+  for pattern in "${CLI_EXCLUDES[@]:-}"; do
+    if [[ "${pattern:0:2}" == "**" ]]; then
+      local cleaned_pattern="${pattern#\*\*}"
+      cleaned_pattern="${cleaned_pattern%\*}"
+
+      if [[ -n "$cleaned_pattern" ]]; then
+        IGNORE_SUBSTRING_PATTERNS+=("$cleaned_pattern")
+      fi
+    else
+      IGNORE_PATTERNS+=("$pattern")
+    fi
+  done
+
   if [[ "$VERBOSE" == true ]]; then
     log_info "Loaded ${#IGNORE_PATTERNS[@]} ignore patterns and ${#IGNORE_SUBSTRING_PATTERNS[@]} substring patterns"
   fi
@@ -313,33 +343,138 @@ show_diff() {
 # Backup file before replacing
 backup_file() {
   local file="$1"
-  local backup_dir="${REPO_ROOT}/.update-backups"
+  local backup_dir="${UPDATE_BACKUP_DIR}"
   local timestamp
   timestamp=$(date +%Y%m%d-%H%M%S)
-  
+
   if [[ "$DRY_RUN" == true ]]; then
     log_info "[DRY-RUN] Would backup: $file"
     return 0
   fi
-  
+
   if [[ ! -f "$file" ]]; then
     log_warning "File does not exist, cannot backup: $file"
     return 1
   fi
-  
+
   ensure_directory "$backup_dir" || return 1
-  
+
   local backup_name
   local relative_name="${file#$HOME/}"
   backup_name="${relative_name//\//_}.${timestamp}.bak"
-  
+
   if cp -p "$file" "${backup_dir}/${backup_name}" 2>/dev/null; then
-    log_info "Backed up to: .update-backups/${backup_name}"
+    log_info "Backed up to: ${backup_dir#$REPO_ROOT\/}/${backup_name}"
     return 0
   else
     log_error "Failed to create backup"
     return 1
   fi
+}
+
+log_new_ignored_files() {
+  echo
+  log_header "New Ignored Files Detected"
+  echo -e "${STY_YELLOW}The following new files from the repository match your ignore patterns:${STY_RST}"
+  echo
+
+  local index=1
+  for item in "${NEW_IGNORED_FILES[@]}"; do
+    local rel_path="${item%%|*}"
+    echo "$index) $rel_path"
+    ((index++))
+  done
+
+  echo
+  echo "These files are new (not in your home yet) but are being ignored."
+  echo "You may want to copy them since they might be useful."
+
+  if [[ "$NON_INTERACTIVE" == true ]]; then
+    echo
+    log_info "Non-interactive mode: skipping new ignored files prompt"
+    return
+  fi
+
+  echo
+  echo "Choose an action:"
+  echo "1) Copy all new ignored files"
+  echo "2) Select which files to copy"
+  echo "3) Keep ignoring all (skip)"
+  echo "4) Add pattern to ignore and skip"
+  echo
+
+  if ! safe_read "Enter your choice (1-4) [3]: " choice "3"; then
+    echo
+    log_warning "Failed to read input. Keeping ignore."
+    return
+  fi
+
+  case $choice in
+    1)
+      for item in "${NEW_IGNORED_FILES[@]}"; do
+        local rel_path="${item%%|*}"
+        local repo_file=$(echo "$item" | cut -d'|' -f2)
+        local home_file=$(echo "$item" | cut -d'|' -f3)
+
+        ensure_directory "$(dirname "$home_file")" || continue
+        cp -p "$repo_file" "$home_file"
+        log_success "Copied: $rel_path"
+        ((files_created++)) || true
+      done
+      echo
+      log_success "All new ignored files have been copied!"
+      ;;
+    2)
+      echo
+      echo "Enter the numbers of files to copy (comma-separated, e.g., 1,3,5):"
+      if ! safe_read "====> " selection ""; then
+        log_warning "Failed to read input. Skipping."
+        return
+      fi
+
+      IFS=',' read -ra selected_indices <<< "$selection"
+      for idx in "${selected_indices[@]}"; do
+        idx=$(echo "$idx" | tr -d ' ')
+        if [[ "$idx" =~ ^[0-9]+$ ]] && [[ $idx -ge 1 && $idx -le ${#NEW_IGNORED_FILES[@]} ]]; then
+          local item="${NEW_IGNORED_FILES[$((idx-1))]}"
+          local rel_path="${item%%|*}"
+          local repo_file=$(echo "$item" | cut -d'|' -f2)
+          local home_file=$(echo "$item" | cut -d'|' -f3)
+
+          ensure_directory "$(dirname "$home_file")" || continue
+          cp -p "$repo_file" "$home_file"
+          log_success "Copied: $rel_path"
+          ((files_created++)) || true
+        else
+          log_warning "Invalid index: $idx"
+        fi
+      done
+      echo
+      log_success "Selected files have been copied!"
+      ;;
+    3)
+      log_info "Keeping ignore for all new files."
+      ;;
+    4)
+      echo
+      echo "Enter the pattern to add to ignore (e.g., 'path/to/file' or '**pattern'):"
+      if ! safe_read "====> " pattern_to_ignore ""; then
+        log_warning "Failed to read input. Keeping ignore."
+        return
+      fi
+
+      if [[ -n "$pattern_to_ignore" ]]; then
+        ensure_directory "$(dirname "$XDG_UPDATE_IGNORE_FILE")"
+        echo "$pattern_to_ignore" >> "$XDG_UPDATE_IGNORE_FILE"
+        log_success "Added '$pattern_to_ignore' to $XDG_UPDATE_IGNORE_FILE"
+        echo
+        log_info "Note: This pattern will apply to future updates."
+      fi
+      ;;
+    *)
+      log_warning "Invalid choice. Keeping ignore."
+      ;;
+  esac
 }
 
 # Function to handle file conflicts
@@ -351,8 +486,13 @@ handle_file_conflict() {
   local choice=""
   local default_val="${DEFAULT_CHOICE:-6}"  # Use DEFAULT_CHOICE or 6 (skip) as fallback
 
-  # In non-interactive mode, use default directly (acts like pressing Enter)
-  if [[ "$NON_INTERACTIVE" == true ]]; then
+  # Check if apply-to-all is already set
+  if [[ -n "$APPLY_TO_ALL_CHOICE" ]]; then
+    choice="$APPLY_TO_ALL_CHOICE"
+    if [[ "$VERBOSE" == true ]]; then
+      log_info "Using apply-to-all choice: $choice for: $home_file"
+    fi
+  elif [[ "$NON_INTERACTIVE" == true ]]; then
     choice="$default_val"
     log_info "Using choice $choice for: $home_file"
   else
@@ -368,20 +508,37 @@ handle_file_conflict() {
     echo "6) Skip this file"
     echo "7) Add to ignore and skip"
     echo "8) Backup to .update-backups/ and replace with repository version"
+    echo "a) Apply this choice to all remaining conflicts"
     echo
 
     while true; do
-      if ! safe_read "Enter your choice (1-8 or name) [${default_val}]: " choice "$default_val"; then
+      if ! safe_read "Enter your choice (1-8, a or name) [${default_val}]: " choice "$default_val"; then
         echo
         log_warning "Failed to read input. Skipping file."
         return
       fi
 
+      # Check for apply-to-all
+      if [[ "$choice" == "a" ]]; then
+        echo
+        echo "Enter the number or name of the choice to apply to all:"
+        if ! safe_read "====> " choice "$default_val"; then
+          log_warning "Failed to read input. Skipping."
+          return
+        fi
+        # Validate the actual choice
+        if [[ "$choice" =~ ^[1-8]$ ]] || [[ "$choice" =~ ^(replace|keep|old|new|diff|skip|ignore|backup)$ ]]; then
+          APPLY_TO_ALL_CHOICE="$choice"
+          echo -e "${STY_GREEN}Applying choice '$choice' to all remaining conflicts.${STY_RST}"
+          break
+        else
+          echo "Invalid choice. Please enter 1-8 or a valid name."
+        fi
       # Validate choice
-      if [[ "$choice" =~ ^[1-8]$ ]] || [[ "$choice" =~ ^(replace|keep|old|new|diff|skip|ignore|backup)$ ]]; then
+      elif [[ "$choice" =~ ^[1-8]$ ]] || [[ "$choice" =~ ^(replace|keep|old|new|diff|skip|ignore|backup)$ ]]; then
         break
       else
-        echo "Invalid choice. Please enter 1-8 or a valid name (replace, keep, old ...)."
+        echo "Invalid choice. Please enter 1-8, a, or a valid name (replace, keep, old ...)."
       fi
     done
   fi
@@ -702,12 +859,12 @@ get_changed_files() {
     find "$dir_path" -type f -print0 2>/dev/null
     return
   fi
-  
+
+  local temp_file
+  temp_file=$(mktemp)
+
   # Try git-based detection first
   if git rev-parse --verify HEAD@{1} &>/dev/null 2>&1; then
-    local temp_file
-    temp_file=$(mktemp)
-    
     # Get changed files with specific filters (Added, Copied, Modified, Renamed)
     git diff --name-only --diff-filter=ACMR HEAD@{1} HEAD 2>/dev/null | \
       while IFS= read -r file; do
@@ -715,18 +872,28 @@ get_changed_files() {
         if [[ "$full_path" == "$dir_path"/* ]] && [[ -f "$full_path" ]]; then
           echo "$full_path"
         fi
-      done > "$temp_file"
-    
-    if [[ -s "$temp_file" ]]; then
-      # Found changes via git
-      tr '\n' '\0' < "$temp_file"
-      rm -f "$temp_file"
-      return
+      done >> "$temp_file"
+
+    # Also get untracked (new) files that are added but not yet committed
+    if git rev-parse --verify HEAD &>/dev/null; then
+      git ls-files --others --exclude-standard "$dir_path" 2>/dev/null | \
+        while IFS= read -r file; do
+          if [[ -f "$file" ]]; then
+            echo "$file"
+          fi
+        done >> "$temp_file"
     fi
-    rm -f "$temp_file"
   fi
-  
-  # Fallback: check all files
+
+  # If we found any files, return them
+  if [[ -s "$temp_file" ]]; then
+    tr '\n' '\0' < "$temp_file"
+    rm -f "$temp_file"
+    return
+  fi
+  rm -f "$temp_file"
+
+  # Fallback: check all files in directory
   find "$dir_path" -type f -print0 2>/dev/null
 }
 
@@ -779,10 +946,15 @@ fi
 log_header "Dotfiles Update Script"
 
 if [[ "$SKIP_NOTICE" == false ]]; then
-  log_warning "THIS SCRIPT IS NOT FULLY TESTED AND MAY CAUSE ISSUES!"
-  log_warning "It might be safer if you want to preserve your modifications and not delete added files,"
-  log_warning "  but this can cause partial updates and therefore unexpected behavior like in #1856."
-  log_warning "In general, prefer \"./setup install\" for updates if available."
+  log_warning "Note: This is an experimental update script."
+  log_warning "It syncs config files to your home directory without full reinstall."
+  log_warning "Use \"./setup install\" for a complete reinstall if you encounter issues."
+  echo
+  log_info "This script will:"
+  log_info "  - Pull latest changes from git"
+  log_info "  - Show you any file conflicts and let you decide what to do"
+  log_info "  - Backup files before replacing (in .update-backups/)"
+  echo
   safe_read "Continue? (y/N): " response "N"
 
   if [[ ! "$response" =~ ^[Yy]$ ]]; then
@@ -1059,8 +1231,15 @@ if [[ "$process_files" == true ]]; then
       home_file="${home_dir_path}/${rel_path}"
 
       if should_ignore "$home_file"; then
-        if [[ "$VERBOSE" == true ]]; then
-          log_info "Ignored: $rel_path (matches ignore pattern)"
+        if [[ ! -f "$home_file" ]]; then
+          NEW_IGNORED_FILES+=("$rel_path|$repo_file|$home_file")
+          if [[ "$VERBOSE" == true ]]; then
+            log_info "Ignored (new file): $rel_path (matches ignore pattern)"
+          fi
+        else
+          if [[ "$VERBOSE" == true ]]; then
+            log_info "Ignored: $rel_path (matches ignore pattern)"
+          fi
         fi
         continue
       fi
@@ -1121,6 +1300,10 @@ if [[ "$process_files" == true ]]; then
   log_info "- Files processed: $files_processed"
   log_info "- Files with conflicts: $files_updated"
   log_info "- New files created: $files_created"
+
+  if [[ ${#NEW_IGNORED_FILES[@]} -gt 0 ]]; then
+    log_new_ignored_files
+  fi
 else
   log_info "Skipping file updates (no changes detected and not in force mode)"
 fi
@@ -1165,6 +1348,17 @@ if [[ "$process_files" == true ]]; then
   echo "- Files processed: $files_processed"
   echo "- Files updated/conflicted: $files_updated"
   echo "- New files created: $files_created"
+  if [[ ${#NEW_IGNORED_FILES[@]} -gt 0 ]]; then
+    echo "- New ignored files: ${#NEW_IGNORED_FILES[@]} (shown to user)"
+  fi
+fi
+
+if [[ ${#CLI_EXCLUDES[@]} -gt 0 ]]; then
+  echo "- CLI excludes: ${CLI_EXCLUDES[*]}"
+fi
+
+if [[ "$CUSTOM_BACKUP_DIR" != "" ]]; then
+  echo "- Backup directory: $CUSTOM_BACKUP_DIR"
 fi
 
 if [[ ! -f "$XDG_UPDATE_IGNORE_FILE" && ! -f "$UPDATE_IGNORE_FILE" ]]; then
@@ -1179,6 +1373,9 @@ if [[ ! -f "$XDG_UPDATE_IGNORE_FILE" && ! -f "$UPDATE_IGNORE_FILE" ]]; then
   echo "  secret-config.conf    # Ignore specific file"
   echo "  /temp-file            # Ignore from root only"
   echo "  **secret**            # Ignore files containing 'secret'"
+  echo
+  echo "Note: Service files like create_custom_config.lua that generate"
+  echo "      user config files can be ignored if you modify them locally."
 fi
 
 # Show backup directory if any backups were created
