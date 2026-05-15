@@ -59,6 +59,9 @@ declare -A CREATED_DIRS
 # Track new ignored files (files that are new and matched ignore pattern)
 declare -a NEW_IGNORED_FILES=()
 
+# Track skipped files during conflicts
+declare -a SKIPPED_FILES=()
+
 # Track CLI excludes
 declare -a CLI_EXCLUDE_PATTERNS=()
 
@@ -477,6 +480,86 @@ log_new_ignored_files() {
   esac
 }
 
+log_skipped_files() {
+  echo
+  log_header "Skipped Files Summary"
+  echo -e "${STY_YELLOW}The following files were skipped during conflict resolution:${STY_RST}"
+  echo
+
+  local index=1
+  for file in "${SKIPPED_FILES[@]}"; do
+    echo "$index) $file"
+    ((index++))
+  done
+
+  echo
+  echo "These files are still in your home directory with old versions."
+
+  if [[ "$NON_INTERACTIVE" == true ]]; then
+    echo
+    log_info "Non-interactive mode: keeping all skipped files"
+    return
+  fi
+
+  echo
+  echo "Choose an action:"
+  echo "1) Delete all skipped files from home"
+  echo "2) Select which files to delete"
+  echo "3) Keep all skipped files (do nothing)"
+  echo
+
+  if ! safe_read "Enter your choice (1-3) [3]: " choice "3"; then
+    echo
+    log_warning "Failed to read input. Keeping all skipped files."
+    return
+  fi
+
+  case $choice in
+    1)
+      for file in "${SKIPPED_FILES[@]}"; do
+        local full_path="${HOME}/${file}"
+        if [[ -e "$full_path" ]]; then
+          rm -f "$full_path"
+          log_success "Deleted: $file"
+        fi
+      done
+      echo
+      log_success "All skipped files have been deleted from home!"
+      ;;
+    2)
+      echo
+      echo "Enter the numbers of files to delete (comma-separated, e.g., 1,3,5):"
+      if ! safe_read "====> " selection ""; then
+        log_warning "Failed to read input. Keeping all."
+        return
+      fi
+
+      IFS=',' read -ra selected_indices <<< "$selection"
+      for idx in "${selected_indices[@]}"; do
+        idx=$(echo "$idx" | tr -d ' ')
+        if [[ "$idx" =~ ^[0-9]+$ ]] && [[ $idx -ge 1 && $idx -le ${#SKIPPED_FILES[@]} ]]; then
+          local file="${SKIPPED_FILES[$((idx-1))]}"
+          local full_path="${HOME}/${file}"
+          if [[ -e "$full_path" ]]; then
+            rm -f "$full_path"
+            log_success "Deleted: $file"
+          fi
+        else
+          log_warning "Invalid index: $idx"
+        fi
+      done
+      echo
+      log_success "Selected files have been deleted!"
+      ;;
+    3)
+      log_info "Keeping all skipped files."
+      ;;
+    *)
+      log_warning "Invalid choice. Keeping all skipped files."
+      ;;
+  esac
+}
+
 # Function to handle file conflicts
 handle_file_conflict() {
   local repo_file="$1"
@@ -646,6 +729,8 @@ handle_file_conflict() {
     ;;
   6|skip)
     log_info "Skipping $home_file"
+    local relative_path="${home_file#$HOME/}"
+    SKIPPED_FILES+=("$relative_path")
     ;;
   7|ignore)
     local relative_path_to_home="${home_file#$HOME/}"
@@ -1304,6 +1389,10 @@ if [[ "$process_files" == true ]]; then
   if [[ ${#NEW_IGNORED_FILES[@]} -gt 0 ]]; then
     log_new_ignored_files
   fi
+
+  if [[ ${#SKIPPED_FILES[@]} -gt 0 ]]; then
+    log_skipped_files
+  fi
 else
   log_info "Skipping file updates (no changes detected and not in force mode)"
 fi
@@ -1350,6 +1439,9 @@ if [[ "$process_files" == true ]]; then
   echo "- New files created: $files_created"
   if [[ ${#NEW_IGNORED_FILES[@]} -gt 0 ]]; then
     echo "- New ignored files: ${#NEW_IGNORED_FILES[@]} (shown to user)"
+  fi
+  if [[ ${#SKIPPED_FILES[@]} -gt 0 ]]; then
+    echo "- Skipped files: ${#SKIPPED_FILES[@]} (shown to user)"
   fi
 fi
 
