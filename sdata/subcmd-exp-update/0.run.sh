@@ -378,186 +378,176 @@ backup_file() {
 log_new_ignored_files() {
   echo
   log_header "New Ignored Files Detected"
-  echo -e "${STY_YELLOW}The following new files from the repository match your ignore patterns:${STY_RST}"
+  echo -e "${STY_YELLOW}These new files from the repository match your ignore patterns:${STY_RST}"
   echo
-
-  local index=1
-  for item in "${NEW_IGNORED_FILES[@]}"; do
-    local rel_path="${item%%|*}"
-    echo "$index) $rel_path"
-    ((index++))
-  done
-
-  echo
-  echo "These files are new (not in your home yet) but are being ignored."
-  echo "You may want to copy them since they might be useful."
 
   if [[ "$NON_INTERACTIVE" == true ]]; then
-    echo
     log_info "Non-interactive mode: skipping new ignored files prompt"
     return
   fi
 
-  echo
-  echo "Choose an action:"
-  echo "1) Copy all new ignored files"
-  echo "2) Select which files to copy"
-  echo "3) Keep ignoring all (skip)"
-  echo "4) Add pattern to ignore and skip"
-  echo
+  local count=1
+  local total=${#NEW_IGNORED_FILES[@]}
+  for item in "${NEW_IGNORED_FILES[@]}"; do
+    local rel_path="${item%%|*}"
+    local repo_file=$(echo "$item" | cut -d'|' -f2)
+    local home_file=$(echo "$item" | cut -d'|' -f3)
 
-  if ! safe_read "Enter your choice (1-4) [3]: " choice "3"; then
+    echo -e "${STY_CYAN}[$count/$total] File: $rel_path${STY_RST}"
+    echo "This file is new (not in your home) but matches your ignore pattern."
     echo
-    log_warning "Failed to read input. Keeping ignore."
-    return
-  fi
+    echo "Choose what to do:"
+    echo "1) Copy this file"
+    echo "2) Skip this file"
+    echo "3) Copy all remaining files"
+    echo "4) Skip all remaining files"
+    echo "5) Add pattern to ignore and skip this file"
+    echo
 
-  case $choice in
-    1)
-      for item in "${NEW_IGNORED_FILES[@]}"; do
-        local rel_path="${item%%|*}"
-        local repo_file=$(echo "$item" | cut -d'|' -f2)
-        local home_file=$(echo "$item" | cut -d'|' -f3)
+    if ! safe_read "Enter your choice (1-5) [2]: " choice "2"; then
+      echo
+      log_warning "Failed to read input. Skipping file."
+      ((count++))
+      continue
+    fi
 
+    case $choice in
+      1)
         ensure_directory "$(dirname "$home_file")" || continue
         cp -p "$repo_file" "$home_file"
         log_success "Copied: $rel_path"
         ((files_created++)) || true
-      done
-      echo
-      log_success "All new ignored files have been copied!"
-      ;;
-    2)
-      echo
-      echo "Enter the numbers of files to copy (comma-separated, e.g., 1,3,5):"
-      if ! safe_read "====> " selection ""; then
-        log_warning "Failed to read input. Skipping."
-        return
-      fi
-
-      IFS=',' read -ra selected_indices <<< "$selection"
-      for idx in "${selected_indices[@]}"; do
-        idx=$(echo "$idx" | tr -d ' ')
-        if [[ "$idx" =~ ^[0-9]+$ ]] && [[ $idx -ge 1 && $idx -le ${#NEW_IGNORED_FILES[@]} ]]; then
-          local item="${NEW_IGNORED_FILES[$((idx-1))]}"
-          local rel_path="${item%%|*}"
-          local repo_file=$(echo "$item" | cut -d'|' -f2)
-          local home_file=$(echo "$item" | cut -d'|' -f3)
-
-          ensure_directory "$(dirname "$home_file")" || continue
-          cp -p "$repo_file" "$home_file"
-          log_success "Copied: $rel_path"
+        ;;
+      2)
+        log_info "Skipped: $rel_path"
+        ;;
+      3)
+        ensure_directory "$(dirname "$home_file")" || continue
+        cp -p "$repo_file" "$home_file"
+        log_success "Copied: $rel_path"
+        ((files_created++)) || true
+        for remaining_item in "${NEW_IGNORED_FILES[@]:$count}"; do
+          local remaining_rel="${remaining_item%%|*}"
+          local remaining_repo=$(echo "$remaining_item" | cut -d'|' -f2)
+          local remaining_home=$(echo "$remaining_item" | cut -d'|' -f3)
+          ensure_directory "$(dirname "$remaining_home")" || continue
+          cp -p "$remaining_repo" "$remaining_home"
+          log_success "Copied: $remaining_rel"
           ((files_created++)) || true
-        else
-          log_warning "Invalid index: $idx"
+        done
+        break
+        ;;
+      4)
+        for remaining_item in "${NEW_IGNORED_FILES[@]:$count}"; do
+          local remaining_rel="${remaining_item%%|*}"
+          log_info "Skipped: $remaining_rel"
+        done
+        break
+        ;;
+      5)
+        echo
+        echo "Enter the pattern to add (or press Enter to use '$rel_path'):"
+        if ! safe_read "Pattern: " pattern_to_ignore ""; then
+          log_warning "Failed to read input. Skipping."
+          ((count++))
+          continue
         fi
-      done
-      echo
-      log_success "Selected files have been copied!"
-      ;;
-    3)
-      log_info "Keeping ignore for all new files."
-      ;;
-    4)
-      echo
-      echo "Enter the pattern to add to ignore (e.g., 'path/to/file' or '**pattern'):"
-      if ! safe_read "====> " pattern_to_ignore ""; then
-        log_warning "Failed to read input. Keeping ignore."
-        return
-      fi
 
-      if [[ -n "$pattern_to_ignore" ]]; then
+        if [[ -z "$pattern_to_ignore" ]]; then
+          pattern_to_ignore="$rel_path"
+        fi
+
         ensure_directory "$(dirname "$XDG_UPDATE_IGNORE_FILE")"
         echo "$pattern_to_ignore" >> "$XDG_UPDATE_IGNORE_FILE"
-        log_success "Added '$pattern_to_ignore' to $XDG_UPDATE_IGNORE_FILE"
-        echo
-        log_info "Note: This pattern will apply to future updates."
-      fi
-      ;;
-    *)
-      log_warning "Invalid choice. Keeping ignore."
-      ;;
-  esac
+        log_success "Added '$pattern_to_ignore' to ignore and skipped this file."
+        ;;
+      *)
+        log_warning "Invalid choice. Skipping file."
+        ;;
+    esac
+
+    ((count++))
+  done
 }
 
 log_skipped_files() {
   echo
-  log_header "Skipped Files Summary"
-  echo -e "${STY_YELLOW}The following files were skipped during conflict resolution:${STY_RST}"
+  log_header "Skipped Files Review"
+  echo -e "${STY_YELLOW}These files were skipped during conflict resolution:${STY_RST}"
   echo
-
-  local index=1
-  for file in "${SKIPPED_FILES[@]}"; do
-    echo "$index) $file"
-    ((index++))
-  done
-
-  echo
-  echo "These files are still in your home directory with old versions."
 
   if [[ "$NON_INTERACTIVE" == true ]]; then
-    echo
     log_info "Non-interactive mode: keeping all skipped files"
     return
   fi
 
-  echo
-  echo "Choose an action:"
-  echo "1) Delete all skipped files from home"
-  echo "2) Select which files to delete"
-  echo "3) Keep all skipped files (do nothing)"
-  echo
+  local count=1
+  local total=${#SKIPPED_FILES[@]}
+  for file in "${SKIPPED_FILES[@]}"; do
+    local full_path="${HOME}/${file}"
 
-  if ! safe_read "Enter your choice (1-3) [3]: " choice "3"; then
+    echo -e "${STY_CYAN}[$count/$total] File: $file${STY_RST}"
+    echo "This file was skipped during conflict resolution."
+    echo "Your old version is still in your home directory."
+
+    if [[ ! -e "$full_path" ]]; then
+      echo -e "${STY_YELLOW}Note: File no longer exists in home.${STY_RST}"
+    fi
+
     echo
-    log_warning "Failed to read input. Keeping all skipped files."
-    return
-  fi
+    echo "Choose what to do:"
+    echo "1) Delete this file from home"
+    echo "2) Keep this file"
+    echo "3) Delete all remaining files"
+    echo "4) Keep all remaining files"
+    echo
 
-  case $choice in
-    1)
-      for file in "${SKIPPED_FILES[@]}"; do
-        local full_path="${HOME}/${file}"
+    if ! safe_read "Enter your choice (1-4) [2]: " choice "2"; then
+      echo
+      log_warning "Failed to read input. Keeping file."
+      ((count++))
+      continue
+    fi
+
+    case $choice in
+      1)
+        if [[ -e "$full_path" ]]; then
+          rm -f "$full_path"
+          log_success "Deleted: $file"
+        else
+          log_info "File already deleted: $file"
+        fi
+        ;;
+      2)
+        log_info "Kept: $file"
+        ;;
+      3)
         if [[ -e "$full_path" ]]; then
           rm -f "$full_path"
           log_success "Deleted: $file"
         fi
-      done
-      echo
-      log_success "All skipped files have been deleted from home!"
-      ;;
-    2)
-      echo
-      echo "Enter the numbers of files to delete (comma-separated, e.g., 1,3,5):"
-      if ! safe_read "====> " selection ""; then
-        log_warning "Failed to read input. Keeping all."
-        return
-      fi
-
-      IFS=',' read -ra selected_indices <<< "$selection"
-      for idx in "${selected_indices[@]}"; do
-        idx=$(echo "$idx" | tr -d ' ')
-        if [[ "$idx" =~ ^[0-9]+$ ]] && [[ $idx -ge 1 && $idx -le ${#SKIPPED_FILES[@]} ]]; then
-          local file="${SKIPPED_FILES[$((idx-1))]}"
-          local full_path="${HOME}/${file}"
-          if [[ -e "$full_path" ]]; then
-            rm -f "$full_path"
-            log_success "Deleted: $file"
+        for remaining_file in "${SKIPPED_FILES[@]:$count}"; do
+          local remaining_path="${HOME}/${remaining_file}"
+          if [[ -e "$remaining_path" ]]; then
+            rm -f "$remaining_path"
+            log_success "Deleted: $remaining_file"
           fi
-        else
-          log_warning "Invalid index: $idx"
-        fi
-      done
-      echo
-      log_success "Selected files have been deleted!"
-      ;;
-    3)
-      log_info "Keeping all skipped files."
-      ;;
-    *)
-      log_warning "Invalid choice. Keeping all skipped files."
-      ;;
-  esac
+        done
+        break
+        ;;
+      4)
+        for remaining_file in "${SKIPPED_FILES[@]:$count}"; do
+          log_info "Kept: $remaining_file"
+        done
+        break
+        ;;
+      *)
+        log_warning "Invalid choice. Keeping file."
+        ;;
+    esac
+
+    ((count++))
+  done
 }
 
 # Function to handle file conflicts
