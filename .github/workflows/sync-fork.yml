@@ -30,8 +30,8 @@ jobs:
       - name: Sync main branch
         run: |
           git checkout main
-          git rebase upstream/main
-          git push origin main --force-with-lease
+          git merge upstream/main --no-edit
+          git push origin main
 
       - name: Sync tags
         run: |
