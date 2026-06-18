@@ -197,16 +197,10 @@ hl.bind("SUPER + P", hl.dsp.window.pin(), { description = "Window: Pin" })
 
 --#/# bind = SUPER+ALT, Hash,, -- Send to workspace -- (1, 2, 3,...)
 for i = 1, 10 do
-    hl.bind("SUPER + ALT + " .. (i % 10), function()
-        hl.dispatch(hl.dsp.window.move({ workspace = workspace_in_group(i), follow = false }))
-    end, { description = "Window: Send to workspace " .. i })
-end
---# raw keycodes for Arabic/non-QWERTY layouts
-for i = 1, 10 do
     local numberkey = { 10, 11, 12, 13, 14, 15, 16, 17, 18, 19 }
     hl.bind("SUPER + ALT + code:" .. numberkey[i], function()
         hl.dispatch(hl.dsp.window.move({ workspace = workspace_in_group(i), follow = false }))
-    end)
+    end, { description = "Window: Send to workspace " .. i })
 end
 --# keypad numbers
 for i = 1, 10 do
@@ -245,18 +239,13 @@ hl.bind("CTRL + SUPER + S", hl.dsp.workspace.toggle_special("special"))
 --##! Workspace
 --# Switching
 --#/# bind = SUPER, Hash,, -- Focus workspace -- (1, 2, 3,...)
-for i = 1, 10 do
-    hl.bind("SUPER + " .. (i % 10), function()
-        hl.dispatch(hl.dsp.focus({ workspace = workspace_in_group(i) }))
-    end, { description = "Workspace: Focus " .. i })
-end
---# Use raw keycodes because some keyboard layouts register number keys as different chars (e.g. Arabic)
+--# Use raw keycodes for keyboard-layout independence (works with Arabic, etc.)
 --# The codes can be verified with `wev`
 for i = 1, 10 do
     local numberkey = { 10, 11, 12, 13, 14, 15, 16, 17, 18, 19 }
     hl.bind("SUPER + code:" .. numberkey[i], function()
         hl.dispatch(hl.dsp.focus({ workspace = workspace_in_group(i) }))
-    end)
+    end, { description = "Workspace: Focus " .. i })
 end
 --# keypad numbers
 for i = 1, 10 do
