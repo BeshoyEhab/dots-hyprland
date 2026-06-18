@@ -12,8 +12,11 @@ end
 
 function create_if_not_exists(path)
    if not is_file_exists(path) then
-      os.execute("mkdir -p \"$(dirname \"" .. path .. "\")\"")
-      os.execute("echo '-- This file will not be overwritten across dots-hyprland updates.\n-- The file name is for the sake of organization and does not matter\n-- See the corresponding files in ~/.config/hypr/hyprland for examples' > \"" .. path .. "\"")
+      local dir = path:match("(.*/)")
+      if dir then
+         os.execute(string.format('mkdir -p "%s"', dir))
+      end
+      os.execute(string.format("echo '-- This file will not be overwritten across dots-hyprland updates.\\n-- The file name is for the sake of organization and does not matter\\n-- See the corresponding files in ~/.config/hypr/hyprland for examples' > \"%s\"", path))
       return true
    end
    return false

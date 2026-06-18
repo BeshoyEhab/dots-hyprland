@@ -38,30 +38,30 @@ function auto_backup_configs(){
   fi
 }
 function gen_firstrun(){
-  x mkdir -p "$(dirname ${FIRSTRUN_FILE})"
+  x mkdir -p "$(dirname "${FIRSTRUN_FILE}")"
   x touch "${FIRSTRUN_FILE}"
-  x mkdir -p "$(dirname ${INSTALLED_LISTFILE})"
+  x mkdir -p "$(dirname "${INSTALLED_LISTFILE}")"
   realpath -se "${FIRSTRUN_FILE}" >> "${INSTALLED_LISTFILE}"
 }
 cp_file(){
   # NOTE: This function is only for using in other functions
-  x mkdir -p "$(dirname $2)"
+  x mkdir -p "$(dirname "$2")"
   x cp -f "$1" "$2"
-  x mkdir -p "$(dirname ${INSTALLED_LISTFILE})"
+  x mkdir -p "$(dirname "${INSTALLED_LISTFILE}")"
   realpath -se "$2" >> "${INSTALLED_LISTFILE}"
 }
 rsync_dir(){
   # NOTE: This function is only for using in other functions
   x mkdir -p "$2"
-  local dest="$(realpath -se $2)"
-  x mkdir -p "$(dirname ${INSTALLED_LISTFILE})"
+  local dest="$(realpath -se "$2")"
+  x mkdir -p "$(dirname "${INSTALLED_LISTFILE}")"
   rsync -a --out-format='%i %n' "$1"/ "$2"/ | awk -v d="$dest" '$1 ~ /^>/{ sub(/^[^ ]+ /,""); printf d "/" $0 "\n" }' >> "${INSTALLED_LISTFILE}"
 }
 rsync_dir__ignore_existing(){
   # NOTE: This function is only for using in other functions
   x mkdir -p "$2"
-  local dest="$(realpath -se $2)"
-  x mkdir -p "$(dirname ${INSTALLED_LISTFILE})"
+  local dest="$(realpath -se "$2")"
+  x mkdir -p "$(dirname "${INSTALLED_LISTFILE}")"
   rsync -a --ignore-existing --out-format='%i %n' "$1"/ "$2"/ | awk -v d="$dest" '$1 ~ /^>/{ sub(/^[^ ]+ /,""); printf d "/" $0 "\n" }' >> "${INSTALLED_LISTFILE}"
 }
 rsync_dir__sync(){
@@ -70,8 +70,8 @@ rsync_dir__sync(){
   # original dotfiles and new ones in the SAME DIRECTORY
   # (eg. in ~/.config/hypr) won't be mixed together
   x mkdir -p "$2"
-  local dest="$(realpath -se $2)"
-  x mkdir -p "$(dirname ${INSTALLED_LISTFILE})"
+  local dest="$(realpath -se "$2")"
+  x mkdir -p "$(dirname "${INSTALLED_LISTFILE}")"
   rsync -a --delete --out-format='%i %n' "$1"/ "$2"/ | awk -v d="$dest" '$1 ~ /^>/{ sub(/^[^ ]+ /,""); printf d "/" $0 "\n" }' >> "${INSTALLED_LISTFILE}"
 }
 rsync_dir__sync_exclude(){
@@ -86,89 +86,89 @@ rsync_dir__sync_exclude(){
     excludes+=(--exclude "$pattern")
   done
   x mkdir -p "$dest_dir"
-  local dest="$(realpath -se $dest_dir)"
-  x mkdir -p "$(dirname ${INSTALLED_LISTFILE})"
+  local dest="$(realpath -se "$dest_dir")"
+  x mkdir -p "$(dirname "${INSTALLED_LISTFILE}")"
   rsync -a --delete "${excludes[@]}" --out-format='%i %n' "$src"/ "$dest_dir"/ | awk -v d="$dest" '$1 ~ /^>/{ sub(/^[^ ]+ /,""); printf d "/" $0 "\n" }' >> "${INSTALLED_LISTFILE}"
 }
 function install_file(){
   # NOTE: Do not add prefix `v` or `x` when using this function
-  local s=$1
-  local t=$2
-  if [ -f $t ];then
+  local s="$1"
+  local t="$2"
+  if [ -f "$t" ];then
     warning_overwrite
   fi
-  v cp_file $s $t
+  v cp_file "$s" "$t"
 }
 function install_file__auto_backup(){
   # NOTE: Do not add prefix `v` or `x` when using this function
-  local s=$1
-  local t=$2
-  if [ -f $t ];then
+  local s="$1"
+  local t="$2"
+  if [ -f "$t" ];then
     echo -e "${STY_YELLOW}[$0]: \"$t\" already exists.${STY_RST}"
     if ${INSTALL_FIRSTRUN};then
       echo -e "${STY_BLUE}[$0]: It seems to be the firstrun.${STY_RST}"
-      v mv $t $t.old
-      v cp_file $s $t
+      v mv "$t" "$t.old"
+      v cp_file "$s" "$t"
     else
       echo -e "${STY_BLUE}[$0]: It seems not a firstrun.${STY_RST}"
-      v cp_file $s $t.new
+      v cp_file "$s" "$t.new"
     fi
   else
     echo -e "${STY_GREEN}[$0]: \"$t\" does not exist yet.${STY_RST}"
-    v cp_file $s $t
+    v cp_file "$s" "$t"
   fi
 }
 function install_dir(){
   # NOTE: Do not add prefix `v` or `x` when using this function
-  local s=$1
-  local t=$2
-  if [ -d $t ];then
+  local s="$1"
+  local t="$2"
+  if [ -d "$t" ];then
     warning_overwrite
   fi
-  v rsync_dir $s $t
+  v rsync_dir "$s" "$t"
 }
 function install_dir__sync(){
   # NOTE: Do not add prefix `v` or `x` when using this function
-  local s=$1
-  local t=$2
-  if [ -d $t ];then
+  local s="$1"
+  local t="$2"
+  if [ -d "$t" ];then
     warning_overwrite
   fi
-  v rsync_dir__sync $s $t
+  v rsync_dir__sync "$s" "$t"
 }
 function install_dir__skip_ifexist(){
   # NOTE: Do not add prefix `v` or `x` when using this function
-  local s=$1
-  local t=$2
-  if [ -d $t ];then
+  local s="$1"
+  local t="$2"
+  if [ -d "$t" ];then
     echo -e "${STY_BLUE}[$0]: \"$t\" already exists, will not do anything.${STY_RST}"
   else
     echo -e "${STY_YELLOW}[$0]: \"$t\" does not exist yet.${STY_RST}"
-    v rsync_dir $s $t
+    v rsync_dir "$s" "$t"
   fi
 }
 function install_dir__ignore_existing(){
   # NOTE: Do not add prefix `v` or `x` when using this function
-  local s=$1
-  local t=$2
-  if [ -d $t ];then
+  local s="$1"
+  local t="$2"
+  if [ -d "$t" ];then
     echo -e "${STY_BLUE}[$0]: \"$t\" already exists, will not do anything.${STY_RST}"
   else
     echo -e "${STY_YELLOW}[$0]: \"$t\" does not exist yet.${STY_RST}"
-    v rsync_dir__ignore_existing $s $t
+    v rsync_dir__ignore_existing "$s" "$t"
   fi
 }
 function install_dir__sync_exclude(){
   # NOTE: Do not add prefix `v` or `x` when using this function
   # Sync directory with exclude patterns
   # Usage: install_dir__sync_exclude <src> <dest> <exclude_pattern1> [<exclude_pattern2> ...]
-  local s=$1
-  local t=$2
+  local s="$1"
+  local t="$2"
   shift 2
-  if [ -d $t ];then
+  if [ -d "$t" ];then
     warning_overwrite
   fi
-  v rsync_dir__sync_exclude $s $t "$@"
+  v rsync_dir__sync_exclude "$s" "$t" "$@"
 }
 function install_google_sans_flex(){
   local font_name="Google Sans Flex"
@@ -177,17 +177,17 @@ function install_google_sans_flex(){
   local src_dir="$REPO_ROOT/cache/$src_name"
   local target_dir="${XDG_DATA_HOME}/fonts/illogical-impulse-$src_name"
   if fc-list | grep -qi "$font_name"; then return; fi
-  x mkdir -p $src_dir
-  x cd $src_dir
+  x mkdir -p "$src_dir"
+  cd "$src_dir" || return 1
   try git init -b main
-  try git remote add origin $src_url
+  try git remote add origin "$src_url"
   x git pull origin main 
   x git submodule update --init --recursive
   warning_overwrite
   rsync_dir "$src_dir" "$target_dir" 
   x fc-cache -fv
-  x cd $REPO_ROOT
-  x mkdir -p "$(dirname ${INSTALLED_LISTFILE})"
+  cd "$REPO_ROOT" || return 1
+  x mkdir -p "$(dirname "${INSTALLED_LISTFILE}")"
   realpath -se "$target_dir" >> "${INSTALLED_LISTFILE}"
 }
 
@@ -200,7 +200,7 @@ for i in "$XDG_BIN_HOME" "$XDG_CACHE_HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME"; 
 done
 case "${INSTALL_FIRSTRUN}" in
   # When specify --firstrun
-  true) sleep 0 ;;
+  true) : ;;
   # When not specify --firstrun
   *)
     if test -f "${FIRSTRUN_FILE}"; then

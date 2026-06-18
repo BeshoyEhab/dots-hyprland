@@ -128,9 +128,7 @@ packages = [
   "libportal-gtk4",
   "gobject-introspection-devel",
   "python3",
-  "python3.12",
-  "python3-devel",
-  "python3.12-devel"
+  "python3-devel"
 ]
 install_opts = ["--setopt=install_weak_deps=False"]
 

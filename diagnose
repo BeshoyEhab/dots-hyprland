@@ -9,15 +9,15 @@
 STY_RED='\e[31m'
 STY_RST='\e[00m'
 
-cd "$(dirname "$0")";export base="$(pwd)"
-output_file=diagnose.result;rm $output_file
+cd "$(dirname "$0")" || exit 1;export base="$(pwd)"
+output_file=diagnose.result;rm -f "$output_file"
 export LANG=C;export LC_ALL=C
 case $(whoami) in
   root)echo -e "${STY_RED}[$0]: This script is NOT to be executed with sudo or as root. Aborting...${STY_RST}";exit 1;;
 esac
 
 
-x() { _exec "$@" 2>&1 | tee -a $output_file ; }
+x() { _exec "$@" 2>&1 | tee -a "$output_file" ; }
 e() { _box "$@" | tee -a $output_file ; }
 _box() {
   length=$(echo "$1" | wc -L);total_width=$((length + 2))
@@ -51,7 +51,7 @@ _check_distro() {
   lsb_release -a || cat /etc/os-release || cat /etc/lsb-release
 }
 _check_venv() {
-  source $(eval echo $ILLOGICAL_IMPULSE_VIRTUAL_ENV)/bin/activate
+  source "$ILLOGICAL_IMPULSE_VIRTUAL_ENV/bin/activate"
   which python
   deactivate
 }

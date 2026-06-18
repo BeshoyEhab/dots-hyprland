@@ -11,7 +11,7 @@ import re
 import sys
 import argparse
 from pathlib import Path
-from typing import Dict, Set, List, Tuple
+from __future__ import annotations
 import tempfile
 import subprocess
 

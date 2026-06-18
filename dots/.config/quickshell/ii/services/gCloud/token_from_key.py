@@ -26,7 +26,7 @@ def get_token(json_str):
             "expiry": expiry
         }))
 
-    except Exception as e:
+    except (json.JSONDecodeError, google.auth.exceptions.GoogleAuthError, KeyError) as e:
         sys.stderr.write(f"Error: {str(e)}\n")
         sys.exit(1)
 

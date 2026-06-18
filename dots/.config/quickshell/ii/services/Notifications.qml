@@ -180,7 +180,6 @@ Singleton {
                 root.unread++;
             }
             root.notify(newNotifObject);
-            // console.log(notifToString(newNotifObject));
             notifFileView.setText(stringifyList(root.list));
         }
     }
@@ -243,7 +242,6 @@ Singleton {
         if (notifServerIndex !== -1) {
             const notifServerNotif = notifServer.trackedNotifications.values[notifServerIndex];
             const action = notifServerNotif.actions.find((action) => action.identifier === notifIdentifier);
-            // console.log("Action found: " + JSON.stringify(action));
             action.invoke()
         } 
         else {
@@ -253,7 +251,7 @@ Singleton {
     }
 
     function triggerListChange() {
-        root.list = root.list.slice(0)
+        root.list = [...root.list]
     }
 
     function refresh() {

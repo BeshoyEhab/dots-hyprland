@@ -87,10 +87,15 @@ Singleton {
         target: Hyprland
 
         function onRawEvent(event) {
-            // console.log("Hyprland raw event:", event.name);
             if (["openlayer", "closelayer", "screencast"].includes(event.name)) return;
-            updateAll()
+            debounceTimer.restart()
         }
+    }
+
+    Timer {
+        id: debounceTimer
+        interval: 100
+        onTriggered: root.updateAll()
     }
 
     Process {
@@ -99,14 +104,18 @@ Singleton {
         stdout: StdioCollector {
             id: clientsCollector
             onStreamFinished: {
-                root.windowList = JSON.parse(clientsCollector.text)
-                let tempWinByAddress = {};
-                for (var i = 0; i < root.windowList.length; ++i) {
-                    var win = root.windowList[i];
-                    tempWinByAddress[win.address] = win;
+                try {
+                    root.windowList = JSON.parse(clientsCollector.text)
+                    let tempWinByAddress = {};
+                    for (var i = 0; i < root.windowList.length; ++i) {
+                        var win = root.windowList[i];
+                        tempWinByAddress[win.address] = win;
+                    }
+                    root.windowByAddress = tempWinByAddress;
+                    root.addresses = root.windowList.map(win => win.address);
+                } catch(e) {
+                    console.error("[HyprlandData] Failed to parse clients:", e.message)
                 }
-                root.windowByAddress = tempWinByAddress;
-                root.addresses = root.windowList.map(win => win.address);
             }
         }
     }
@@ -117,7 +126,11 @@ Singleton {
         stdout: StdioCollector {
             id: monitorsCollector
             onStreamFinished: {
-                root.monitors = JSON.parse(monitorsCollector.text);
+                try {
+                    root.monitors = JSON.parse(monitorsCollector.text);
+                } catch(e) {
+                    console.error("[HyprlandData] Failed to parse monitors:", e.message)
+                }
             }
         }
     }
@@ -128,7 +141,11 @@ Singleton {
         stdout: StdioCollector {
             id: layersCollector
             onStreamFinished: {
-                root.layers = JSON.parse(layersCollector.text);
+                try {
+                    root.layers = JSON.parse(layersCollector.text);
+                } catch(e) {
+                    console.error("[HyprlandData] Failed to parse layers:", e.message)
+                }
             }
         }
     }
@@ -139,16 +156,20 @@ Singleton {
         stdout: StdioCollector {
             id: workspacesCollector
             onStreamFinished: {
-                var rawWorkspaces = JSON.parse(workspacesCollector.text);
-                // Filter out invalid workspace ids (e.g. lock-screen temp workspace 2147483647 - N)
-                root.workspaces = rawWorkspaces.filter(ws => ws.id >= 1 && ws.id <= 100);
-                let tempWorkspaceById = {};
-                for (var i = 0; i < root.workspaces.length; ++i) {
-                    var ws = root.workspaces[i];
-                    tempWorkspaceById[ws.id] = ws;
+                try {
+                    var rawWorkspaces = JSON.parse(workspacesCollector.text);
+                    // Filter out invalid workspace ids (e.g. lock-screen temp workspace 2147483647 - N)
+                    root.workspaces = rawWorkspaces.filter(ws => ws.id >= 1 && ws.id <= 100);
+                    let tempWorkspaceById = {};
+                    for (var i = 0; i < root.workspaces.length; ++i) {
+                        var ws = root.workspaces[i];
+                        tempWorkspaceById[ws.id] = ws;
+                    }
+                    root.workspaceById = tempWorkspaceById;
+                    root.workspaceIds = root.workspaces.map(ws => ws.id);
+                } catch(e) {
+                    console.error("[HyprlandData] Failed to parse workspaces:", e.message)
                 }
-                root.workspaceById = tempWorkspaceById;
-                root.workspaceIds = root.workspaces.map(ws => ws.id);
             }
         }
     }
@@ -159,7 +180,11 @@ Singleton {
         stdout: StdioCollector {
             id: activeWorkspaceCollector
             onStreamFinished: {
-                root.activeWorkspace = JSON.parse(activeWorkspaceCollector.text);
+                try {
+                    root.activeWorkspace = JSON.parse(activeWorkspaceCollector.text);
+                } catch(e) {
+                    console.error("[HyprlandData] Failed to parse active workspace:", e.message)
+                }
             }
         }
     }

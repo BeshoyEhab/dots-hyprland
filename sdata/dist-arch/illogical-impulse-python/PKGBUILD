@@ -4,7 +4,7 @@ pkgver=1.1
 pkgrel=5
 pkgdesc='Illogical Impulse Python Dependencies'
 arch=(any)
-license=(None)
+license=('GPL-3.0-or-later')
 depends=(
   clang
   uv

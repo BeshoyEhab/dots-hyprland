@@ -27,7 +27,7 @@ v install-python-packages
 showfun setup_user_group
 v setup_user_group
 
-if [[ ! -z $(systemctl --version) ]]; then
+if [[ -n $(systemctl --version) ]]; then
   # For Fedora, uinput is required for the virtual keyboard to function, and udev rules enable input group users to utilize it.
   if [[ "$OS_GROUP_ID" == "fedora" ]]; then
     v bash -c "echo uinput | sudo tee /etc/modules-load.d/uinput.conf"
@@ -41,14 +41,14 @@ if [[ ! -z $(systemctl --version) ]]; then
       v prepare_systemd_user_service
     fi
     # When $DBUS_SESSION_BUS_ADDRESS and $XDG_RUNTIME_DIR are empty, it commonly means that the current user has been logged in with `su - user` or `ssh user@hostname`. In such case `systemctl --user enable <service>` is not usable. It should be `sudo systemctl --machine=$(whoami)@.host --user enable <service>` instead.
-    if [[ ! -z "${DBUS_SESSION_BUS_ADDRESS}" ]]; then
+    if [[ -n "${DBUS_SESSION_BUS_ADDRESS}" ]]; then
       v systemctl --user enable ydotool --now
     else
-      v sudo systemctl --machine=$(whoami)@.host --user enable ydotool --now
+      v sudo systemctl --machine="$(whoami)@.host" --user enable ydotool --now
     fi
   fi
   v sudo systemctl enable bluetooth --now
-elif [[ ! -z $(openrc --version) ]]; then
+elif [[ -n $(openrc --version) ]]; then
   v bash -c "echo 'modules=i2c-dev' | sudo tee -a /etc/conf.d/modules"
   v sudo rc-update add modules boot
   v sudo rc-update add ydotool default
@@ -64,7 +64,7 @@ else
 fi
 
 if [[ "$OS_GROUP_ID" == "gentoo" ]]; then
-  v sudo chown -R $(whoami):$(whoami) ~/.local/
+  v sudo chown -R "$(whoami):$(whoami)" ~/.local/
 fi
 
 v gsettings set org.gnome.desktop.interface font-name 'Google Sans Flex Medium 11 @opsz=11,wght=500'

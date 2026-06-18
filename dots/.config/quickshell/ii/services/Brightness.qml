@@ -118,7 +118,7 @@ Singleton {
             }
         }
         onMultipliedBrightnessChanged: {
-            if (monitor.animationEnabled) syncBrightness();
+            if (monitor.animateChanges) syncBrightness();
             else setTimer.restart();
         }
 
@@ -184,8 +184,8 @@ Singleton {
     }
 
     // Anti-flashbang
-    property int workspaceAnimationDelay: 500
-    property int contentSwitchDelay: 30
+    readonly property int workspaceAnimationDelay: 500
+    readonly property int contentSwitchDelay: 30
     property string screenshotDir: "/tmp/quickshell/brightness/antiflashbang"
     function brightnessMultiplierForLightness(x: real): real {
         // I hand picked some values and fitted an exponential curve for this

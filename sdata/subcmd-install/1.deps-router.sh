@@ -8,9 +8,9 @@ function outdate_detect(){
 
   local source_path="$1"
   local target_path="$2"
-  local source_timestamp="$(latest_commit_timestamp $source_path 2>/dev/null)"
-  local target_timestamp="$(latest_commit_timestamp $target_path 2>/dev/null)"
-  local outdate_detect_mode="$(cat ${target_path}/outdate-detect-mode)"
+  local source_timestamp="$(latest_commit_timestamp "$source_path" 2>/dev/null)"
+  local target_timestamp="$(latest_commit_timestamp "$target_path" 2>/dev/null)"
+  local outdate_detect_mode="$(cat "${target_path}/outdate-detect-mode")"
 
   # outdate-detect-mode possible modes:
   # - WIP: Work in progress (should be taken as outdated)
