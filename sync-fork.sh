@@ -47,10 +47,11 @@ if [[ -n $(git ls-files --others --exclude-standard) ]]; then
 fi
 
 STASHED=false
-if $HAS_CHANGES || $HAS_UNTRACKED; then
+if [ "$HAS_CHANGES" = true ] || [ "$HAS_UNTRACKED" = true ]; then
     info "Stashing local changes..."
-    git stash push -m "sync-fork auto-stash $(date +%Y%m%d-%H%M%S)" \
-        $( $HAS_UNTRACKED && echo "--include-untracked" || true )
+    local stash_args=(-m "sync-fork auto-stash $(date +%Y%m%d-%H%M%S)")
+    [ "$HAS_UNTRACKED" = true ] && stash_args+=(--include-untracked)
+    git stash push "${stash_args[@]}"
     STASHED=true
 fi
 
